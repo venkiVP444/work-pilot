@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WorkPilot.Api/WorkPilot.Api.csproj" />
+    <Project Path="src/WorkPilot.Application/WorkPilot.Application.csproj" />
+    <Project Path="src/WorkPilot.Domain/WorkPilot.Domain.csproj" />
+    <Project Path="src/WorkPilot.Infrastructure/WorkPilot.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WorkPilot.IntegrationTests/WorkPilot.IntegrationTests.csproj" />
+    <Project Path="tests/WorkPilot.UnitTests/WorkPilot.UnitTests.csproj" />
+  </Folder>
+</Solution>
