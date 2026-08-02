@@ -1,0 +1,6 @@
+@WorkPilot.Api_HostAddress = http://localhost:5007
+
+GET {{WorkPilot.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
