@@ -13,6 +13,7 @@ using WorkPilot.Infrastructure.Email;
 using WorkPilot.Infrastructure.Gemini;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
 
 // Cloud Run PORT support
 var port = Environment.GetEnvironmentVariable("PORT") ?? "5050";

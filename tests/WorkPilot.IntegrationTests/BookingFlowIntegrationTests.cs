@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using WorkPilot.Application.Common.Interfaces;
 using WorkPilot.Application.DTOs;
 using WorkPilot.Domain.Entities;
@@ -22,6 +24,11 @@ namespace WorkPilot.IntegrationTests;
 public class BookingFlowIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
 
     public BookingFlowIntegrationTests(WebApplicationFactory<Program> factory)
     {
@@ -98,7 +105,7 @@ public class BookingFlowIntegrationTests : IClassFixture<WebApplicationFactory<P
         var bookingReqResponse = await client.PostAsJsonAsync($"/api/customer/{businessId}/booking-request", bookingCommand);
         Assert.Equal(HttpStatusCode.OK, bookingReqResponse.StatusCode);
 
-        var bookingRequestResult = await bookingReqResponse.Content.ReadFromJsonAsync<BookingRequestDto>();
+        var bookingRequestResult = await bookingReqResponse.Content.ReadFromJsonAsync<BookingRequestDto>(_jsonOptions);
         Assert.NotNull(bookingRequestResult);
         Assert.Equal(BookingRequestStatus.PendingApproval, bookingRequestResult.Status);
 
@@ -106,7 +113,7 @@ public class BookingFlowIntegrationTests : IClassFixture<WebApplicationFactory<P
         var pendingResponse = await client.GetAsync($"/api/booking-requests/pending?businessId={businessId}");
         Assert.Equal(HttpStatusCode.OK, pendingResponse.StatusCode);
 
-        var pendingList = await pendingResponse.Content.ReadFromJsonAsync<List<BookingRequestDto>>();
+        var pendingList = await pendingResponse.Content.ReadFromJsonAsync<List<BookingRequestDto>>(_jsonOptions);
         Assert.NotNull(pendingList);
         Assert.Contains(pendingList, r => r.Id == bookingRequestResult.Id);
 
@@ -115,7 +122,7 @@ public class BookingFlowIntegrationTests : IClassFixture<WebApplicationFactory<P
         var approveResponse = await client.PostAsJsonAsync($"/api/booking-requests/{bookingRequestResult.Id}/approve", approveDto);
         Assert.Equal(HttpStatusCode.OK, approveResponse.StatusCode);
 
-        var approvedResult = await approveResponse.Content.ReadFromJsonAsync<BookingRequestDto>();
+        var approvedResult = await approveResponse.Content.ReadFromJsonAsync<BookingRequestDto>(_jsonOptions);
         Assert.NotNull(approvedResult);
         Assert.Equal(BookingRequestStatus.Approved, approvedResult.Status);
         Assert.NotNull(approvedResult.GoogleCalendarEventId);
@@ -124,7 +131,7 @@ public class BookingFlowIntegrationTests : IClassFixture<WebApplicationFactory<P
         // Step 5: Verify Idempotency (approving second time returns same result without duplicate events)
         var approveSecondResponse = await client.PostAsJsonAsync($"/api/booking-requests/{bookingRequestResult.Id}/approve", approveDto);
         Assert.Equal(HttpStatusCode.OK, approveSecondResponse.StatusCode);
-        var secondApprovedResult = await approveSecondResponse.Content.ReadFromJsonAsync<BookingRequestDto>();
+        var secondApprovedResult = await approveSecondResponse.Content.ReadFromJsonAsync<BookingRequestDto>(_jsonOptions);
         Assert.NotNull(secondApprovedResult);
         Assert.Equal(approvedResult.GoogleCalendarEventId, secondApprovedResult.GoogleCalendarEventId);
 
@@ -156,12 +163,12 @@ public class BookingFlowIntegrationTests : IClassFixture<WebApplicationFactory<P
         );
 
         var reqResponse = await client.PostAsJsonAsync($"/api/customer/{businessId}/booking-request", bookingCommand);
-        var req = await reqResponse.Content.ReadFromJsonAsync<BookingRequestDto>();
+        var req = await reqResponse.Content.ReadFromJsonAsync<BookingRequestDto>(_jsonOptions);
         Assert.NotNull(req);
 
         // Approve
         var approveResponse = await client.PostAsJsonAsync($"/api/booking-requests/{req.Id}/approve", new ApproveBookingRequestDto("OK"));
-        var approved = await approveResponse.Content.ReadFromJsonAsync<BookingRequestDto>();
+        var approved = await approveResponse.Content.ReadFromJsonAsync<BookingRequestDto>(_jsonOptions);
         Assert.NotNull(approved);
         var eventId = approved.GoogleCalendarEventId;
         Assert.NotNull(eventId);
@@ -170,7 +177,7 @@ public class BookingFlowIntegrationTests : IClassFixture<WebApplicationFactory<P
         var retryResponse = await client.PostAsync($"/api/booking-requests/{req.Id}/retry-email", null);
         Assert.Equal(HttpStatusCode.OK, retryResponse.StatusCode);
 
-        var retried = await retryResponse.Content.ReadFromJsonAsync<BookingRequestDto>();
+        var retried = await retryResponse.Content.ReadFromJsonAsync<BookingRequestDto>(_jsonOptions);
         Assert.NotNull(retried);
         Assert.Equal(eventId, retried.GoogleCalendarEventId); // Calendar Event ID preserved!
         Assert.Equal("Simulated", retried.EmailDeliveryStatus);
@@ -196,14 +203,14 @@ public class BookingFlowIntegrationTests : IClassFixture<WebApplicationFactory<P
         var bookingReqResponse = await client.PostAsJsonAsync($"/api/customer/{businessId}/booking-request", bookingCommand);
         Assert.Equal(HttpStatusCode.OK, bookingReqResponse.StatusCode);
 
-        var bookingRequestResult = await bookingReqResponse.Content.ReadFromJsonAsync<BookingRequestDto>();
+        var bookingRequestResult = await bookingReqResponse.Content.ReadFromJsonAsync<BookingRequestDto>(_jsonOptions);
         Assert.NotNull(bookingRequestResult);
 
         var rejectDto = new RejectBookingRequestDto("Slot fully booked");
         var rejectResponse = await client.PostAsJsonAsync($"/api/booking-requests/{bookingRequestResult.Id}/reject", rejectDto);
         Assert.Equal(HttpStatusCode.OK, rejectResponse.StatusCode);
 
-        var rejectedResult = await rejectResponse.Content.ReadFromJsonAsync<BookingRequestDto>();
+        var rejectedResult = await rejectResponse.Content.ReadFromJsonAsync<BookingRequestDto>(_jsonOptions);
         Assert.NotNull(rejectedResult);
         Assert.Equal(BookingRequestStatus.Rejected, rejectedResult.Status);
         Assert.Equal("Slot fully booked", rejectedResult.OwnerNotes);
