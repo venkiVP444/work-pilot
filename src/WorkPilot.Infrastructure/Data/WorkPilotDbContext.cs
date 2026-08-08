@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using WorkPilot.Application.Common.Interfaces;
 using WorkPilot.Domain.Entities;
+using WorkPilot.Domain.Enums;
 
 namespace WorkPilot.Infrastructure.Data;
 
@@ -19,12 +20,13 @@ public class WorkPilotDbContext : DbContext, IWorkPilotDbContext
     public DbSet<BookingRequest> BookingRequests => Set<BookingRequest>();
     public DbSet<Booking> Bookings => Set<Booking>();
     public DbSet<AIInteractionLog> AIInteractionLogs => Set<AIInteractionLog>();
+    public DbSet<AIAgentAction> AIAgentActions => Set<AIAgentAction>();
+    public DbSet<Campaign> Campaigns => Set<Campaign>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        // Business
         modelBuilder.Entity<Business>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -33,7 +35,6 @@ public class WorkPilotDbContext : DbContext, IWorkPilotDbContext
             entity.Property(e => e.TimeZone).HasMaxLength(100);
         });
 
-        // Service
         modelBuilder.Entity<Service>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -45,7 +46,6 @@ public class WorkPilotDbContext : DbContext, IWorkPilotDbContext
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // AvailabilityRule
         modelBuilder.Entity<AvailabilityRule>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -55,19 +55,19 @@ public class WorkPilotDbContext : DbContext, IWorkPilotDbContext
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // Lead
         modelBuilder.Entity<Lead>(entity =>
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Email).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.TotalSpend).HasColumnType("decimal(18,2)");
+            entity.Ignore(e => e.DaysSinceLastVisit);
             entity.HasOne(e => e.Business)
                   .WithMany(b => b.Leads)
                   .HasForeignKey(e => e.BusinessId)
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // Conversation
         modelBuilder.Entity<Conversation>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -77,7 +77,6 @@ public class WorkPilotDbContext : DbContext, IWorkPilotDbContext
                   .OnDelete(DeleteBehavior.SetNull);
         });
 
-        // ConversationMessage
         modelBuilder.Entity<ConversationMessage>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -87,7 +86,6 @@ public class WorkPilotDbContext : DbContext, IWorkPilotDbContext
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // BookingRequest
         modelBuilder.Entity<BookingRequest>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -101,7 +99,6 @@ public class WorkPilotDbContext : DbContext, IWorkPilotDbContext
                   .OnDelete(DeleteBehavior.Restrict);
         });
 
-        // Booking
         modelBuilder.Entity<Booking>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -111,7 +108,6 @@ public class WorkPilotDbContext : DbContext, IWorkPilotDbContext
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // AIInteractionLog
         modelBuilder.Entity<AIInteractionLog>(entity =>
         {
             entity.HasKey(e => e.Id);
@@ -120,6 +116,34 @@ public class WorkPilotDbContext : DbContext, IWorkPilotDbContext
                   .WithMany()
                   .HasForeignKey(e => e.BusinessId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AIAgentAction>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.EstimatedRevenue).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.ActualRevenue).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.OwnerIntent).HasMaxLength(1000);
+            entity.HasOne(e => e.Business)
+                  .WithMany()
+                  .HasForeignKey(e => e.BusinessId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Campaign)
+                  .WithOne(c => c.AIAgentAction)
+                  .HasForeignKey<Campaign>(c => c.AIAgentActionId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Campaign>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.RevenueGenerated).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.CampaignCost).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.Name).HasMaxLength(300);
+            entity.HasOne(e => e.Business)
+                  .WithMany()
+                  .HasForeignKey(e => e.BusinessId)
+                  .OnDelete(DeleteBehavior.NoAction);
         });
     }
 }

@@ -29,4 +29,13 @@ public interface IEmailService
         string location,
         string cancellationPolicy,
         CancellationToken cancellationToken = default);
+
+    Task<EmailResult> SendCampaignEmailAsync(
+        string recipientEmail,
+        string recipientName,
+        string businessName,
+        string subjectLine,
+        string htmlBody,
+        CancellationToken cancellationToken = default);
 }
+
