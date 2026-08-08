@@ -253,4 +253,337 @@ public class BookingFlowIntegrationTests : IClassFixture<WebApplicationFactory<P
         // Verify that the booked slot is NO LONGER proposed
         Assert.DoesNotContain(chatResult2.ProposedSlots, s => s.StartTime == bookedSlot.StartTime);
     }
+
+    [Fact]
+    public async Task OwnerAIChat_ShouldReturnReactivationCampaignPlan_WhenRevenueGrowthRequested()
+    {
+        var client = _factory.CreateClient();
+        var businessId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+        var chatRequest = new OwnerChatRequest("I need to increase my profit by 20% this month");
+        var response = await client.PostAsJsonAsync($"/api/owner/{businessId}/chat", chatRequest);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<OwnerChatResponse>(_jsonOptions);
+        Assert.NotNull(result);
+        Assert.Contains("reactivat", result.AssistantMessage.ToLower());
+        Assert.NotNull(result.ActionPlan);
+        Assert.Equal("Re-engagement campaign — Inactive 60+ days", result.ActionPlan.Title);
+        Assert.Equal("Medium", result.ActionPlan.RiskLevel);
+        Assert.True(result.RequiresApproval);
+        Assert.NotNull(result.ActionId);
+        Assert.NotEmpty(result.AgentChain);
+    }
+
+    [Fact]
+    public async Task OwnerAIExecuteAction_ShouldExecuteCampaignAndSendEmails()
+    {
+        var client = _factory.CreateClient();
+        var businessId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+        // 1. Propose action via chat
+        var chatRequest = new OwnerChatRequest("reactivate my customers please");
+        var chatRes = await client.PostAsJsonAsync($"/api/owner/{businessId}/chat", chatRequest);
+        var chatResult = await chatRes.Content.ReadFromJsonAsync<OwnerChatResponse>(_jsonOptions);
+        Assert.NotNull(chatResult);
+        Assert.NotNull(chatResult.ActionId);
+
+        // 2. Execute approved action
+        var executeCommand = new ExecuteActionCommand(businessId, chatResult.ActionId.Value, "Do it!");
+        var execRes = await client.PostAsJsonAsync($"/api/owner/{businessId}/execute-action", executeCommand);
+        Assert.Equal(HttpStatusCode.OK, execRes.StatusCode);
+
+        var execResult = await execRes.Content.ReadFromJsonAsync<ExecuteActionResult>(_jsonOptions);
+        Assert.NotNull(execResult);
+        Assert.True(execResult.Success);
+        Assert.True(execResult.CustomersReached > 0);
+        Assert.NotEmpty(execResult.ExecutionSteps);
+
+        // 3. Verify actual outcome in operations log
+        var opsResponse = await client.GetAsync($"/api/owner/{businessId}/ai-operations?take=5");
+        Assert.Equal(HttpStatusCode.OK, opsResponse.StatusCode);
+        var opsList = await opsResponse.Content.ReadFromJsonAsync<List<AIAgentActionDto>>(_jsonOptions);
+        Assert.NotNull(opsList);
+        Assert.Contains(opsList, op => op.Id == chatResult.ActionId.Value && op.Status == "Completed");
+    }
+
+    [Fact]
+    public async Task OwnerAIRejectAction_ShouldMarkActionAsRejected()
+    {
+        var client = _factory.CreateClient();
+        var businessId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+        // 1. Propose action via chat
+        var chatRequest = new OwnerChatRequest("run slot campaign");
+        var chatRes = await client.PostAsJsonAsync($"/api/owner/{businessId}/chat", chatRequest);
+        var chatResult = await chatRes.Content.ReadFromJsonAsync<OwnerChatResponse>(_jsonOptions);
+        Assert.NotNull(chatResult);
+        Assert.NotNull(chatResult.ActionId);
+
+        // 2. Reject action
+        var rejectRequest = new { Reason = "Too busy right now" };
+        var rejectRes = await client.PostAsJsonAsync($"/api/owner/{businessId}/reject-action/{chatResult.ActionId.Value}", rejectRequest);
+        Assert.Equal(HttpStatusCode.OK, rejectRes.StatusCode);
+
+        // 3. Verify status in log
+        var opsResponse = await client.GetAsync($"/api/owner/{businessId}/ai-operations?take=5");
+        var opsList = await opsResponse.Content.ReadFromJsonAsync<List<AIAgentActionDto>>(_jsonOptions);
+        Assert.NotNull(opsList);
+        Assert.Contains(opsList, op => op.Id == chatResult.ActionId.Value && op.Status == "Rejected");
+    }
+
+    [Fact]
+    public async Task OwnerAIOpportunities_ShouldReturnOpportunitiesList()
+    {
+        var client = _factory.CreateClient();
+        var businessId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+        var response = await client.GetAsync($"/api/owner/{businessId}/opportunities");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var opportunities = await response.Content.ReadFromJsonAsync<List<OpportunityCardDto>>(_jsonOptions);
+        Assert.NotNull(opportunities);
+        Assert.NotEmpty(opportunities);
+    }
+
+    [Fact]
+    public async Task OwnerAIEnhancedMetrics_ShouldReturnMetricsWithRevenueAndAIVolume()
+    {
+        var client = _factory.CreateClient();
+        var businessId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+        var response = await client.GetAsync($"/api/owner/{businessId}/metrics/enhanced");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var metrics = await response.Content.ReadFromJsonAsync<EnhancedMetricsDto>(_jsonOptions);
+        Assert.NotNull(metrics);
+        Assert.True(metrics.TotalCustomers >= 50); // From DbInitializer seed
+        Assert.True(metrics.TotalRevenue > 0);
+    }
+
+    [Fact]
+    public async Task OwnerAIChat_ShouldReturnAnalysisOnly_WhenRevenueDropRequested()
+    {
+        var client = _factory.CreateClient();
+        var businessId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+        var chatRequest = new OwnerChatRequest("Why did my revenue drop?");
+        var response = await client.PostAsJsonAsync($"/api/owner/{businessId}/chat", chatRequest);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<OwnerChatResponse>(_jsonOptions);
+        Assert.NotNull(result);
+        Assert.Contains("business health audit", result.AssistantMessage.ToLower());
+        Assert.Null(result.ActionPlan); // analysis only - Low risk
+        Assert.False(result.RequiresApproval);
+        Assert.Null(result.ActionId);
+        
+        // Check dynamic agent steps chain: Orchestrator -> BusinessAnalyst -> BusinessGoalAgent -> BusinessAnalystAgent -> RevenueOptimizationAgent
+        Assert.Contains(result.AgentChain, s => s.Agent.Contains("RevenueOptimizationAgent"));
+    }
+
+    [Fact]
+    public async Task OwnerAIChat_ShouldReturnBookingSlotActionPlan_WhenFillSlotsRequested()
+    {
+        var client = _factory.CreateClient();
+        var businessId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+        var chatRequest = new OwnerChatRequest("Fill my empty slots tomorrow");
+        var response = await client.PostAsJsonAsync($"/api/owner/{businessId}/chat", chatRequest);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var result = await response.Content.ReadFromJsonAsync<OwnerChatResponse>(_jsonOptions);
+        Assert.NotNull(result);
+        Assert.Contains("calendar capacity", result.AssistantMessage.ToLower());
+        Assert.NotNull(result.ActionPlan);
+        Assert.Equal("BookSlot", result.ActionPlan.ActionType);
+        Assert.Equal("BookingAgent", result.ActionPlan.AgentType);
+        Assert.True(result.RequiresApproval);
+        Assert.NotNull(result.ActionId);
+        Assert.Contains(result.AgentChain, s => s.Agent.Contains("RevenueOptimizationAgent"));
+    }
+
+    [Fact]
+    public async Task OwnerAIExecuteAction_ShouldExecuteSlotFilling_WhenBookSlotApproved()
+    {
+        var client = _factory.CreateClient();
+        var businessId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+        // 1. Propose BookSlot action
+        var chatRequest = new OwnerChatRequest("fill my empty slots");
+        var chatRes = await client.PostAsJsonAsync($"/api/owner/{businessId}/chat", chatRequest);
+        var chatResult = await chatRes.Content.ReadFromJsonAsync<OwnerChatResponse>(_jsonOptions);
+        Assert.NotNull(chatResult);
+        Assert.NotNull(chatResult.ActionId);
+        Assert.Equal("BookSlot", chatResult.ActionPlan?.ActionType);
+
+        // 2. Execute approved action
+        var executeCommand = new ExecuteActionCommand(businessId, chatResult.ActionId.Value, "Approved");
+        var execRes = await client.PostAsJsonAsync($"/api/owner/{businessId}/execute-action", executeCommand);
+        Assert.Equal(HttpStatusCode.OK, execRes.StatusCode);
+
+        var execResult = await execRes.Content.ReadFromJsonAsync<ExecuteActionResult>(_jsonOptions);
+        Assert.NotNull(execResult);
+        Assert.True(execResult.Success);
+        Assert.True(execResult.CustomersReached > 0);
+        Assert.Contains(execResult.ExecutionSteps, s => s.Agent == "BookingAgent");
+    }
+
+    [Fact]
+    public async Task DbInitializer_ShouldSeedCorrectCustomerSegments_AndConfirmedBookings()
+    {
+        var client = _factory.CreateClient();
+        var businessId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+        var response = await client.GetAsync($"/api/owner/{businessId}/snapshot");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var snapshot = await response.Content.ReadFromJsonAsync<BusinessSnapshotDto>(_jsonOptions);
+        Assert.NotNull(snapshot);
+
+        // Verify segments (exactly matching seeded distribution):
+        Assert.Equal(20, snapshot.ActiveCustomers);
+        Assert.Equal(8, snapshot.InactiveCustomers30Days);
+        Assert.Equal(12, snapshot.InactiveCustomers60Days);
+        Assert.Equal(10, snapshot.InactiveCustomers90Plus);
+
+        // Verify total confirmed bookings seeded
+        Assert.True(snapshot.RevenueThisMonth > 0 || snapshot.RevenueLastMonth > 0);
+    }
+
+    [Fact]
+    public async Task OwnerAIExecuteAction_ShouldExecuteReactivationCampaign_WhenCreateCampaignApproved()
+    {
+        var client = _factory.CreateClient();
+        var businessId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+        // 1. Propose CreateCampaign action
+        var chatRequest = new OwnerChatRequest("I need to make 20% more profit this month");
+        var chatRes = await client.PostAsJsonAsync($"/api/owner/{businessId}/chat", chatRequest);
+        var chatResult = await chatRes.Content.ReadFromJsonAsync<OwnerChatResponse>(_jsonOptions);
+        Assert.NotNull(chatResult);
+        Assert.NotNull(chatResult.ActionId);
+        Assert.Equal("CreateCampaign", chatResult.ActionPlan?.ActionType);
+
+        // 2. Execute approved action
+        var executeCommand = new ExecuteActionCommand(businessId, chatResult.ActionId.Value, "Approved");
+        var execRes = await client.PostAsJsonAsync($"/api/owner/{businessId}/execute-action", executeCommand);
+        
+        if (execRes.StatusCode != HttpStatusCode.OK)
+        {
+            var errText = await execRes.Content.ReadAsStringAsync();
+            throw new Exception($"Execution failed: {errText}");
+        }
+
+        var execResult = await execRes.Content.ReadFromJsonAsync<ExecuteActionResult>(_jsonOptions);
+        Assert.NotNull(execResult);
+        Assert.True(execResult.Success);
+        Assert.True(execResult.CustomersReached > 0);
+    }
+
+    [Fact]
+    public async Task MultiBusiness_ShouldAllowOnboarding_AndMaintainStrictIsolation()
+    {
+        var client = _factory.CreateClient();
+        var fitProId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+
+        // 1. Verify existing demo (FitPro) baseline metrics
+        var fitProSnapRes = await client.GetAsync($"/api/owner/{fitProId}/snapshot");
+        Assert.Equal(HttpStatusCode.OK, fitProSnapRes.StatusCode);
+        var fitProSnap = await fitProSnapRes.Content.ReadFromJsonAsync<BusinessSnapshotDto>(_jsonOptions);
+        Assert.NotNull(fitProSnap);
+        Assert.Equal(20, fitProSnap.ActiveCustomers); // Seeded default active count
+
+        // 2. Onboard new business "Alpha Studio"
+        var createDto = new CreateBusinessDto(
+            Name: "Alpha Studio",
+            Description: "Yoga and Pilates boutique",
+            Location: "Seattle",
+            ContactEmail: "owner@alphastudio.com",
+            TimeZone: "PST",
+            CancellationPolicy: "12 hours",
+            CommunicationTone: "Professional"
+        );
+        var createRes = await client.PostAsJsonAsync("/api/businesses", createDto);
+        Assert.Equal(HttpStatusCode.Created, createRes.StatusCode);
+        var alphaDto = await createRes.Content.ReadFromJsonAsync<BusinessDto>(_jsonOptions);
+        Assert.NotNull(alphaDto);
+        Assert.NotEqual(Guid.Empty, alphaDto.Id);
+        Assert.NotEqual(fitProId, alphaDto.Id);
+
+        // 3. List all businesses and verify both exist
+        var listRes = await client.GetAsync("/api/businesses");
+        Assert.Equal(HttpStatusCode.OK, listRes.StatusCode);
+        var list = await listRes.Content.ReadFromJsonAsync<List<BusinessDto>>(_jsonOptions);
+        Assert.NotNull(list);
+        Assert.Contains(list, b => b.Id == fitProId);
+        Assert.Contains(list, b => b.Id == alphaDto.Id);
+
+        // 4. Verify new business starts clean (0 customers)
+        var alphaSnapRes = await client.GetAsync($"/api/owner/{alphaDto.Id}/snapshot");
+        Assert.Equal(HttpStatusCode.OK, alphaSnapRes.StatusCode);
+        var alphaSnap = await alphaSnapRes.Content.ReadFromJsonAsync<BusinessSnapshotDto>(_jsonOptions);
+        Assert.NotNull(alphaSnap);
+        Assert.Equal(0, alphaSnap.TotalCustomers); // No leads seeded for new business
+
+        // 5. Create service for Alpha Studio
+        var createServicePayload = new CreateServiceDto(
+            Name: "Yoga Flow",
+            Description: "Dynamic yoga class",
+            Price: 60.00m,
+            DurationMinutes: 60
+        );
+        var serviceRes = await client.PostAsJsonAsync($"/api/businesses/{alphaDto.Id}/services", createServicePayload);
+        Assert.Equal(HttpStatusCode.OK, serviceRes.StatusCode);
+        var alphaService = await serviceRes.Content.ReadFromJsonAsync<ServiceDto>(_jsonOptions);
+        Assert.NotNull(alphaService);
+
+        // 6. Create lead with same email on both businesses
+        var commonEmail = "common@customer.com";
+        
+        // Lead for FitPro
+        var fitProLeadCmd = new CreateBookingRequestCommand(
+            BusinessId: fitProId,
+            ConversationId: Guid.NewGuid(),
+            ServiceId: Guid.NewGuid(), // will fallback to default service
+            RequestedStartTime: DateTime.UtcNow.AddDays(1),
+            RequestedEndTime: DateTime.UtcNow.AddDays(1).AddHours(1),
+            CustomerName: "FitPro User",
+            CustomerEmail: commonEmail,
+            CustomerPhone: "111-111"
+        );
+        var fitProBookingRes = await client.PostAsJsonAsync($"/api/customer/{fitProId}/booking-request", fitProLeadCmd);
+        Assert.Equal(HttpStatusCode.OK, fitProBookingRes.StatusCode);
+
+        // Lead for Alpha Studio
+        var alphaLeadCmd = new CreateBookingRequestCommand(
+            BusinessId: alphaDto.Id,
+            ConversationId: Guid.NewGuid(),
+            ServiceId: alphaService.Id, // use the actual created service Id
+            RequestedStartTime: DateTime.UtcNow.AddDays(2),
+            RequestedEndTime: DateTime.UtcNow.AddDays(2).AddHours(1),
+            CustomerName: "Alpha User",
+            CustomerEmail: commonEmail,
+            CustomerPhone: "222-222"
+        );
+        var alphaBookingRes = await client.PostAsJsonAsync($"/api/customer/{alphaDto.Id}/booking-request", alphaLeadCmd);
+        Assert.Equal(HttpStatusCode.OK, alphaBookingRes.StatusCode);
+
+        // 7. Verify isolation in database snapshots
+        var fitProSnapFinalRes = await client.GetAsync($"/api/owner/{fitProId}/snapshot");
+        var fitProSnapFinal = await fitProSnapFinalRes.Content.ReadFromJsonAsync<BusinessSnapshotDto>(_jsonOptions);
+        
+        var alphaSnapFinalRes = await client.GetAsync($"/api/owner/{alphaDto.Id}/snapshot");
+        var alphaSnapFinal = await alphaSnapFinalRes.Content.ReadFromJsonAsync<BusinessSnapshotDto>(_jsonOptions);
+
+        Assert.NotNull(fitProSnapFinal);
+        Assert.NotNull(alphaSnapFinal);
+
+        // FitPro has 50 seeded + 1 new customer = 51 total customers
+        Assert.Equal(51, fitProSnapFinal.TotalCustomers);
+        
+        // Alpha Studio has exactly 1 customer
+        Assert.Equal(1, alphaSnapFinal.TotalCustomers);
+    }
 }
+

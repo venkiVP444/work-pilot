@@ -7,7 +7,13 @@ import {
   AvailabilityRule,
   CustomerChatMessageResponse,
   BookingRequest,
-  DashboardMetrics
+  DashboardMetrics,
+  OwnerChatResponse,
+  ExecuteActionResult,
+  OpportunityCard,
+  AIAgentActionLog,
+  BusinessSnapshot,
+  EnhancedMetrics
 } from '../models/workpilot.models';
 
 @Injectable({
@@ -25,6 +31,14 @@ export class ApiService {
 
   updateBusiness(id: string, payload: any): Observable<Business> {
     return this.http.put<Business>(`${this.baseUrl}/businesses/${id}`, payload);
+  }
+
+  getBusinesses(): Observable<Business[]> {
+    return this.http.get<Business[]>(`${this.baseUrl}/businesses`);
+  }
+
+  createBusiness(payload: any): Observable<Business> {
+    return this.http.post<Business>(`${this.baseUrl}/businesses`, payload);
   }
 
   // Services API
@@ -91,4 +105,42 @@ export class ApiService {
   getMetrics(businessId: string): Observable<DashboardMetrics> {
     return this.http.get<DashboardMetrics>(`${this.baseUrl}/metrics/${businessId}`);
   }
+
+  // ─── Owner AI Business OS ────────────────────────────────────────────────────
+
+  ownerChat(businessId: string, message: string, lastActionId?: string): Observable<OwnerChatResponse> {
+    return this.http.post<OwnerChatResponse>(`${this.baseUrl}/owner/${businessId}/chat`, {
+      message,
+      lastActionId
+    });
+  }
+
+  executeAction(businessId: string, actionId: string, notes?: string): Observable<ExecuteActionResult> {
+    return this.http.post<ExecuteActionResult>(`${this.baseUrl}/owner/${businessId}/execute-action`, {
+      businessId,
+      actionId,
+      ownerNotes: notes
+    });
+  }
+
+  rejectAction(businessId: string, actionId: string, reason: string): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/owner/${businessId}/reject-action/${actionId}`, { reason });
+  }
+
+  getOpportunities(businessId: string): Observable<OpportunityCard[]> {
+    return this.http.get<OpportunityCard[]>(`${this.baseUrl}/owner/${businessId}/opportunities`);
+  }
+
+  getAIOperations(businessId: string, take = 20): Observable<AIAgentActionLog[]> {
+    return this.http.get<AIAgentActionLog[]>(`${this.baseUrl}/owner/${businessId}/ai-operations?take=${take}`);
+  }
+
+  getBusinessSnapshot(businessId: string): Observable<BusinessSnapshot> {
+    return this.http.get<BusinessSnapshot>(`${this.baseUrl}/owner/${businessId}/snapshot`);
+  }
+
+  getEnhancedMetrics(businessId: string): Observable<EnhancedMetrics> {
+    return this.http.get<EnhancedMetrics>(`${this.baseUrl}/owner/${businessId}/metrics/enhanced`);
+  }
 }
+

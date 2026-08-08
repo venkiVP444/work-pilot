@@ -16,6 +16,9 @@ public interface IWorkPilotDbContext
     DbSet<BookingRequest> BookingRequests { get; }
     DbSet<Booking> Bookings { get; }
     DbSet<AIInteractionLog> AIInteractionLogs { get; }
+    DbSet<AIAgentAction> AIAgentActions { get; }
+    DbSet<Campaign> Campaigns { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
+
