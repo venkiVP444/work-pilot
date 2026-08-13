@@ -47,7 +47,8 @@ public class GeminiAgentService : IGeminiAgentService
         try
         {
             var prompt = BuildGeminiPrompt(request);
-            var requestUri = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={apiKey}";
+            var model = _configuration["Gemini:Model"] ?? "gemini-flash-latest";
+            var requestUri = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}";
 
             var requestBody = new
             {
@@ -101,7 +102,8 @@ public class GeminiAgentService : IGeminiAgentService
         try
         {
             var prompt = BuildOwnerIntentPrompt(request);
-            var requestUri = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={apiKey}";
+            var model = _configuration["Gemini:Model"] ?? "gemini-flash-latest";
+            var requestUri = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}";
 
             var requestBody = new
             {
