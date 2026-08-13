@@ -48,10 +48,10 @@ public class EmailService : IEmailService
 
         var htmlBody = BuildHtmlBody(recipientName, businessName, serviceName, appointmentStartTime, appointmentEndTime, location, cancellationPolicy);
 
-        // Explicit Check: If Provider is Simulated or ApiKey is missing for Resend/SendGrid, return Simulated status
+        // Explicit Check: If Provider is Simulated or ApiKey is missing/placeholder, return Simulated status
         if (provider.Equals("Simulated", StringComparison.OrdinalIgnoreCase) ||
             ((provider.Equals("Resend", StringComparison.OrdinalIgnoreCase) || provider.Equals("SendGrid", StringComparison.OrdinalIgnoreCase)) &&
-             (string.IsNullOrWhiteSpace(apiKey) || apiKey == "YOUR_EMAIL_API_KEY_HERE")))
+             (string.IsNullOrWhiteSpace(apiKey) || apiKey == "YOUR_EMAIL_API_KEY_HERE" || apiKey.StartsWith("YOUR_"))))
         {
             _logger.LogInformation("Email Simulated: Development simulation mode active. Email to {RecipientEmail} logged without external network dispatch.", recipientEmail);
             return new EmailResult(true, EmailDeliveryStatus.Simulated);
@@ -333,10 +333,151 @@ public class EmailService : IEmailService
         <p>If you need to reschedule or have questions, feel free to reply directly to this email.</p>
         
         <div class='footer'>
-            Powered by WorkPilot AI — Autonomous Lead Response & Booking Agent
+            Powered by WorkPilot AI — Autonomous Lead Response &amp; Booking Agent
         </div>
     </div>
 </body>
 </html>";
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CAMPAIGN EMAIL — AI-driven marketing campaigns
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public async Task<EmailResult> SendCampaignEmailAsync(
+        string recipientEmail,
+        string recipientName,
+        string businessName,
+        string subjectLine,
+        string htmlBody,
+        CancellationToken cancellationToken = default)
+    {
+        var provider = (_configuration["Email:Provider"] ?? "Simulated").Trim();
+        var apiKey = _configuration["Email:ApiKey"];
+        var senderEmail = _configuration["Email:SenderEmail"] ?? "onboarding@resend.dev";
+        var senderName = _configuration["Email:SenderName"] ?? businessName;
+
+        // Wrap plain text body in HTML if not already HTML
+        var formattedBody = htmlBody.TrimStart().StartsWith("<")
+            ? htmlBody
+            : BuildCampaignHtmlBody(recipientName, businessName, subjectLine, htmlBody);
+
+        // Simulated mode
+        if (provider.Equals("Simulated", StringComparison.OrdinalIgnoreCase) ||
+            ((provider.Equals("Resend", StringComparison.OrdinalIgnoreCase) || provider.Equals("SendGrid", StringComparison.OrdinalIgnoreCase)) &&
+             (string.IsNullOrWhiteSpace(apiKey) || apiKey == "YOUR_EMAIL_API_KEY_HERE" || apiKey.StartsWith("YOUR_"))))
+        {
+            _logger.LogInformation("Campaign Email Simulated: To {RecipientEmail} | Subject: {Subject}", recipientEmail, subjectLine);
+            return new EmailResult(true, EmailDeliveryStatus.Simulated);
+        }
+
+        if (provider.Equals("Resend", StringComparison.OrdinalIgnoreCase))
+        {
+            return await SendCampaignViaResendAsync(apiKey!, senderEmail, senderName, recipientEmail, subjectLine, formattedBody, cancellationToken);
+        }
+
+        if (provider.Equals("SendGrid", StringComparison.OrdinalIgnoreCase))
+        {
+            return await SendCampaignViaSendGridAsync(apiKey!, senderEmail, senderName, recipientEmail, subjectLine, formattedBody, cancellationToken);
+        }
+
+        _logger.LogInformation("Campaign Email Simulated: Provider '{Provider}' fallback.", provider);
+        return new EmailResult(true, EmailDeliveryStatus.Simulated);
+    }
+
+    private async Task<EmailResult> SendCampaignViaResendAsync(
+        string apiKey, string senderEmail, string senderName,
+        string recipientEmail, string subjectLine, string htmlBody,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails");
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+            var payload = new
+            {
+                from = $"{senderName} <{senderEmail}>",
+                to = new[] { recipientEmail },
+                subject = subjectLine,
+                html = htmlBody
+            };
+
+            req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            var response = await _httpClient.SendAsync(req, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation("Campaign email sent via Resend to {Email} | Subject: {Subject}", recipientEmail, subjectLine);
+                return new EmailResult(true, EmailDeliveryStatus.Sent);
+            }
+
+            var error = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogWarning("Campaign Resend failed {Status}: {Error}", response.StatusCode, error);
+            return new EmailResult(false, EmailDeliveryStatus.Failed, $"Resend: {response.StatusCode} — {error}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Campaign Resend exception for {Email}", recipientEmail);
+            return new EmailResult(false, EmailDeliveryStatus.Failed, ex.Message);
+        }
+    }
+
+    private async Task<EmailResult> SendCampaignViaSendGridAsync(
+        string apiKey, string senderEmail, string senderName,
+        string recipientEmail, string subjectLine, string htmlBody,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.sendgrid.com/v3/mail/send");
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+            var payload = new
+            {
+                personalizations = new[] { new { to = new[] { new { email = recipientEmail } } } },
+                from = new { email = senderEmail, name = senderName },
+                subject = subjectLine,
+                content = new[] { new { type = "text/html", value = htmlBody } }
+            };
+
+            req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+            var response = await _httpClient.SendAsync(req, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation("Campaign email sent via SendGrid to {Email}", recipientEmail);
+                return new EmailResult(true, EmailDeliveryStatus.Sent);
+            }
+
+            var error = await response.Content.ReadAsStringAsync(cancellationToken);
+            return new EmailResult(false, EmailDeliveryStatus.Failed, $"SendGrid: {response.StatusCode} — {error}");
+        }
+        catch (Exception ex)
+        {
+            return new EmailResult(false, EmailDeliveryStatus.Failed, ex.Message);
+        }
+    }
+
+    private static string BuildCampaignHtmlBody(string name, string businessName, string subject, string bodyText)
+    {
+        var lines = bodyText.Split('\n').Select(l => $"<p>{System.Net.WebUtility.HtmlEncode(l.Trim())}</p>");
+        return $@"<!DOCTYPE html>
+<html>
+<head><meta charset='utf-8'><style>
+body {{ font-family: Arial, sans-serif; background: #f8f9fa; margin: 0; padding: 20px; }}
+.container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; padding: 40px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }}
+.header {{ background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; border-radius: 8px; padding: 24px; margin-bottom: 24px; text-align: center; }}
+.header h1 {{ margin: 0; font-size: 22px; }}
+.body-text p {{ color: #374151; line-height: 1.6; }}
+.footer {{ margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px; text-align: center; }}
+</style></head>
+<body>
+<div class='container'>
+  <div class='header'><h1>{System.Net.WebUtility.HtmlEncode(businessName)}</h1></div>
+  <div class='body-text'>{string.Join("", lines)}</div>
+  <div class='footer'>Sent by WorkPilot AI — Your AI Business Operator</div>
+</div>
+</body></html>";
     }
 }

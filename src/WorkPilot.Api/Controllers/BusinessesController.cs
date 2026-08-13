@@ -21,6 +21,17 @@ public class BusinessesController : ControllerBase
         _dbContext = dbContext;
     }
 
+    [HttpGet]
+    public async Task<IActionResult> GetBusinesses(CancellationToken cancellationToken)
+    {
+        var list = await _dbContext.Businesses
+            .Select(b => new BusinessDto(
+                b.Id, b.Name, b.Description, b.Location, b.ContactEmail, b.TimeZone,
+                b.CancellationPolicy, b.CommunicationTone, b.IsCalendarConnected, b.GoogleCalendarId, b.CreatedAt))
+            .ToListAsync(cancellationToken);
+        return Ok(list);
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetBusiness(Guid id, CancellationToken cancellationToken)
     {
@@ -49,6 +60,19 @@ public class BusinessesController : ControllerBase
         };
 
         _dbContext.Businesses.Add(b);
+
+        var defaultRules = new[]
+        {
+            new AvailabilityRule { BusinessId = b.Id, DayOfWeek = DayOfWeek.Monday,    StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(17, 0, 0), BufferMinutes = 15, IsActive = true },
+            new AvailabilityRule { BusinessId = b.Id, DayOfWeek = DayOfWeek.Tuesday,   StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(17, 0, 0), BufferMinutes = 15, IsActive = true },
+            new AvailabilityRule { BusinessId = b.Id, DayOfWeek = DayOfWeek.Wednesday, StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(17, 0, 0), BufferMinutes = 15, IsActive = true },
+            new AvailabilityRule { BusinessId = b.Id, DayOfWeek = DayOfWeek.Thursday,  StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(17, 0, 0), BufferMinutes = 15, IsActive = true },
+            new AvailabilityRule { BusinessId = b.Id, DayOfWeek = DayOfWeek.Friday,    StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(17, 0, 0), BufferMinutes = 15, IsActive = true },
+            new AvailabilityRule { BusinessId = b.Id, DayOfWeek = DayOfWeek.Saturday,  StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(14, 0, 0), BufferMinutes = 15, IsActive = true },
+            new AvailabilityRule { BusinessId = b.Id, DayOfWeek = DayOfWeek.Sunday,    StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(14, 0, 0), BufferMinutes = 15, IsActive = true }
+        };
+        _dbContext.AvailabilityRules.AddRange(defaultRules);
+
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         return CreatedAtAction(nameof(GetBusiness), new { id = b.Id }, new BusinessDto(

@@ -38,7 +38,7 @@ public class GoogleCalendarService : IGoogleCalendarService
         var clientId = _configuration["Google:ClientId"];
         var redirectUri = _configuration["Google:RedirectUri"] ?? "http://localhost:5050/api/calendar/callback";
 
-        if (string.IsNullOrWhiteSpace(clientId) || clientId == "YOUR_GOOGLE_CLIENT_ID_HERE")
+        if (string.IsNullOrWhiteSpace(clientId) || clientId == "YOUR_GOOGLE_CLIENT_ID_HERE" || clientId.StartsWith("YOUR_"))
         {
             _logger.LogWarning("Google Client ID is not configured.");
             return $"http://localhost:5050/api/calendar/callback?code=mock_authorization_code&state={businessId}";
@@ -60,7 +60,7 @@ public class GoogleCalendarService : IGoogleCalendarService
         var clientSecret = _configuration["Google:ClientSecret"];
         var redirectUri = _configuration["Google:RedirectUri"] ?? "http://localhost:5050/api/calendar/callback";
 
-        if (string.IsNullOrWhiteSpace(clientId) || clientId == "YOUR_GOOGLE_CLIENT_ID_HERE" || code == "mock_authorization_code")
+        if (string.IsNullOrWhiteSpace(clientId) || clientId == "YOUR_GOOGLE_CLIENT_ID_HERE" || clientId.StartsWith("YOUR_") || code == "mock_authorization_code")
         {
             _logger.LogInformation("Mock token exchange executed for business {BusinessId}.", businessId);
             business.IsCalendarConnected = true;
@@ -97,7 +97,7 @@ public class GoogleCalendarService : IGoogleCalendarService
         if (business == null) return new List<TimeIntervalDto>();
 
         var clientId = _configuration["Google:ClientId"];
-        if (string.IsNullOrWhiteSpace(clientId) || clientId == "YOUR_GOOGLE_CLIENT_ID_HERE" || string.IsNullOrWhiteSpace(business.GoogleRefreshToken) || business.GoogleRefreshToken.StartsWith("mock_"))
+        if (string.IsNullOrWhiteSpace(clientId) || clientId == "YOUR_GOOGLE_CLIENT_ID_HERE" || clientId.StartsWith("YOUR_") || string.IsNullOrWhiteSpace(business.GoogleRefreshToken) || business.GoogleRefreshToken.StartsWith("mock_"))
         {
             _logger.LogInformation("Returning simulated calendar free/busy intervals for business {BusinessId}.", businessId);
             return GetSimulatedBusyIntervals(startDate, endDate);
@@ -144,7 +144,7 @@ public class GoogleCalendarService : IGoogleCalendarService
         var business = await _dbContext.Businesses.FirstOrDefaultAsync(b => b.Id == businessId, cancellationToken);
         var clientId = _configuration["Google:ClientId"];
 
-        if (business == null || string.IsNullOrWhiteSpace(clientId) || clientId == "YOUR_GOOGLE_CLIENT_ID_HERE" || string.IsNullOrWhiteSpace(business.GoogleRefreshToken) || business.GoogleRefreshToken.StartsWith("mock_"))
+        if (business == null || string.IsNullOrWhiteSpace(clientId) || clientId == "YOUR_GOOGLE_CLIENT_ID_HERE" || clientId.StartsWith("YOUR_") || string.IsNullOrWhiteSpace(business.GoogleRefreshToken) || business.GoogleRefreshToken.StartsWith("mock_"))
         {
             var eventId = "gcal_evt_" + Guid.NewGuid().ToString("N")[..12];
             _logger.LogInformation("Created simulated Google Calendar event {EventId} for {CustomerName} ({StartTime} - {EndTime}).", eventId, customerName, startTime, endTime);

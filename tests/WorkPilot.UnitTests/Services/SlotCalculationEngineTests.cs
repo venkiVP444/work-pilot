@@ -14,7 +14,7 @@ public class SlotCalculationEngineTests
     public void CalculateAvailableSlots_ShouldExcludeBusyIntervalsAndIncludeBuffer()
     {
         // Arrange: Business open 8:00 AM - 1:00 PM (13:00) on Saturday
-        var targetDate = new DateTime(2026, 8, 8); // Saturday
+        var targetDate = new DateTime(2026, 8, 15); // Future Saturday
         var rules = new List<AvailabilityRule>
         {
             new AvailabilityRule

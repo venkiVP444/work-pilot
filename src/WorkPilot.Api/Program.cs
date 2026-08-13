@@ -7,10 +7,18 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using WorkPilot.Application.Common.Interfaces;
 using WorkPilot.Application.Services;
+using WorkPilot.Application.Agents;
+using WorkPilot.Application.Orchestration;
+using WorkPilot.Application.Tools.Analytics;
+using WorkPilot.Application.Tools.Bookings;
+using WorkPilot.Application.Tools.Campaigns;
+using WorkPilot.Application.Tools.Communications;
+using WorkPilot.Application.Tools.Customers;
 using WorkPilot.Infrastructure.Calendar;
 using WorkPilot.Infrastructure.Data;
 using WorkPilot.Infrastructure.Email;
 using WorkPilot.Infrastructure.Gemini;
+
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
@@ -38,6 +46,30 @@ builder.Services.AddHttpClient<IGeminiAgentService, GeminiAgentService>();
 builder.Services.AddScoped<IGoogleCalendarService, GoogleCalendarService>();
 builder.Services.AddHttpClient<IEmailService, EmailService>();
 builder.Services.AddScoped<BookingOrchestratorService>();
+
+// Add Tools
+builder.Services.AddScoped<IGetBusinessSnapshotTool, GetBusinessSnapshotTool>();
+builder.Services.AddScoped<IGetInactiveCustomersTool, GetInactiveCustomersTool>();
+builder.Services.AddScoped<IGetCustomerSegmentsTool, GetCustomerSegmentsTool>();
+builder.Services.AddScoped<IGetEmptySlotsTool, GetEmptySlotsTool>();
+builder.Services.AddScoped<ICreateBookingRequestTool, CreateBookingRequestTool>();
+builder.Services.AddScoped<ICreateCampaignTool, CreateCampaignTool>();
+builder.Services.AddScoped<IGetCampaignResultsTool, GetCampaignResultsTool>();
+builder.Services.AddScoped<ISendCampaignEmailTool, SendCampaignEmailTool>();
+
+// Add Agents
+builder.Services.AddScoped<IBusinessGoalAgent, BusinessGoalAgent>();
+builder.Services.AddScoped<IBusinessAnalystAgent, BusinessAnalystAgent>();
+builder.Services.AddScoped<ICustomerGrowthAgent, CustomerGrowthAgent>();
+builder.Services.AddScoped<IMarketingAgent, MarketingAgent>();
+builder.Services.AddScoped<IBookingAgent, BookingAgent>();
+builder.Services.AddScoped<IRevenueOptimizationAgent, RevenueOptimizationAgent>();
+builder.Services.AddScoped<IOperationsAgent, OperationsAgent>();
+
+// Add Orchestration
+builder.Services.AddScoped<IAIBusinessOrchestrator, AIBusinessOrchestrator>();
+
+
 
 // CORS
 builder.Services.AddCors(options =>
@@ -84,6 +116,7 @@ using (var scope = app.Services.CreateScope())
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
         logger.LogError(ex, "An error occurred while initializing the database.");
+        throw;
     }
 }
 
