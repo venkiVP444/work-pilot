@@ -22,16 +22,28 @@ interface ChatMessage {
       <header class="business-header" *ngIf="business">
         <div class="header-content">
           <div class="brand-info">
-            <div class="avatar-icon">🏋️‍♂️</div>
+            <div class="avatar-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            </div>
             <div>
-              <h1>{{ business.name }}</h1>
+              <div class="title-row">
+                <h1>{{ business.name }}</h1>
+                <span class="verified-badge">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg> Verified Business
+                </span>
+              </div>
               <p class="tagline">{{ business.description }}</p>
-              <p class="location">📍 {{ business.location }} | ✉️ {{ business.contactEmail }}</p>
+              <div class="location-bar">
+                <span>📍 {{ business.location }}</span>
+                <span class="sep">•</span>
+                <span>✉️ {{ business.contactEmail }}</span>
+              </div>
             </div>
           </div>
           <div class="header-nav">
             <a class="nav-btn-owner" routerLink="/dashboard">
-              🔑 Owner Dashboard ➔
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+              Owner Dashboard
             </a>
           </div>
         </div>
@@ -40,19 +52,37 @@ interface ChatMessage {
       <div class="main-container">
         <!-- Available Services Sidebar -->
         <aside class="services-panel">
-          <h3>Available Services</h3>
-          <div class="service-card" *ngFor="let s of services" [class.selected]="selectedService?.id === s.id" (click)="selectService(s)">
-            <div class="service-title">
-              <strong>{{ s.name }}</strong>
-              <span class="price">\${{ s.price }}</span>
+          <div class="panel-header">
+            <h3>Available Services</h3>
+            <span class="service-count">{{ services.length }} offered</span>
+          </div>
+          <div class="service-cards-list">
+            <div class="service-card" *ngFor="let s of services" [class.selected]="selectedService?.id === s.id" (click)="selectService(s)">
+              <div class="service-title">
+                <strong>{{ s.name }}</strong>
+                <span class="price">\${{ s.price }}</span>
+              </div>
+              <p class="service-desc">{{ s.description }}</p>
+              <div class="service-meta">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                {{ s.durationMinutes }} mins session
+              </div>
             </div>
-            <p class="service-desc">{{ s.description }}</p>
-            <div class="service-meta">⏱️ {{ s.durationMinutes }} mins session</div>
           </div>
         </aside>
 
         <!-- Chat & Booking Workflow Area -->
         <main class="chat-section">
+          <div class="chat-header-bar">
+            <div class="agent-title">
+              <span class="ai-icon-spark">⚡</span>
+              <div>
+                <span class="agent-name">WorkPilot Autonomous Booking Assistant</span>
+                <span class="agent-status"><span class="live-beacon"></span> Online & Syncing Calendar</span>
+              </div>
+            </div>
+          </div>
+
           <div class="chat-messages" #scrollContainer>
             <div *ngFor="let msg of messages" class="message-row" [class.user]="msg.sender === 'user'">
               <div class="avatar">{{ msg.sender === 'user' ? '👤' : '🤖' }}</div>
@@ -70,6 +100,7 @@ interface ChatMessage {
                       [class.active]="selectedSlot === slot"
                       [disabled]="isSubmittingBooking || bookingSubmitted"
                       (click)="onSelectSlot(slot)">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
                       {{ slot.displayText }}
                     </button>
                   </div>
@@ -80,13 +111,16 @@ interface ChatMessage {
             <!-- Loading Spinner -->
             <div *ngIf="isLoading" class="message-row">
               <div class="avatar">🤖</div>
-              <div class="bubble loading">WorkPilot AI is checking live calendar availability...</div>
+              <div class="bubble loading">
+                <span class="spinner-dots"><span></span><span></span><span></span></span>
+                WorkPilot AI is checking live calendar availability...
+              </div>
             </div>
           </div>
 
           <!-- Customer Lead Details Form (Visible after slot selected) -->
           <div *ngIf="selectedSlot && !bookingSubmitted" class="lead-form-card">
-            <h4>Confirm Your Details for Slot: {{ selectedSlot.displayText }}</h4>
+            <h4>Confirm Your Details for Slot: <span class="slot-highlight">{{ selectedSlot.displayText }}</span></h4>
             <div class="form-grid">
               <input type="text" [(ngModel)]="customerName" placeholder="Your Full Name *" [disabled]="isSubmittingBooking" required />
               <input type="email" [(ngModel)]="customerEmail" placeholder="Your Email Address *" [disabled]="isSubmittingBooking" required />
@@ -103,11 +137,11 @@ interface ChatMessage {
             <h3>Booking Request Submitted!</h3>
             <p>Your request for <strong>{{ selectedSlot?.displayText }}</strong> has been sent to {{ business?.name }}.</p>
             <div class="status-badge">Status: Pending Owner Approval</div>
-            <p class="sub-text">Once the trainer approves your request, a real Google Calendar invite and confirmation email will be sent automatically to <strong>{{ customerEmail }}</strong>.</p>
+            <p class="sub-text">Once approved, a Google Calendar invite and confirmation email will be sent automatically to <strong>{{ customerEmail }}</strong>.</p>
             
             <div class="banner-actions">
               <a class="btn-goto-dashboard" routerLink="/dashboard">
-                🔑 Go to Owner Dashboard to Approve Request ➔
+                Go to Owner Dashboard to Approve Request ➔
               </a>
             </div>
           </div>
@@ -121,67 +155,101 @@ interface ChatMessage {
               [disabled]="isLoading || isSubmittingBooking"
               placeholder="e.g. Hi, I want to book personal training this Saturday morning..." 
             />
-            <button (click)="sendMessage()" [disabled]="!userMessage.trim() || isLoading || isSubmittingBooking">Send</button>
+            <button (click)="sendMessage()" [disabled]="!userMessage.trim() || isLoading || isSubmittingBooking">
+              Send
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
           </div>
         </main>
       </div>
     </div>
   `,
   styles: [`
-    .booking-page { font-family: 'Segoe UI', system-ui, sans-serif; background-color: #0f172a; color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; }
-    .business-header { background: linear-gradient(135deg, #1e293b 0%, #334155 100%); padding: 24px 32px; border-bottom: 1px solid #475569; }
-    .header-content { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto; width: 100%; }
-    .brand-info { display: flex; align-items: center; gap: 20px; }
-    .avatar-icon { font-size: 40px; background: rgba(99, 102, 241, 0.2); padding: 12px; border-radius: 16px; border: 1px solid #6366f1; }
-    .business-header h1 { margin: 0; font-size: 26px; color: #ffffff; }
-    .tagline { color: #94a3b8; margin: 4px 0; font-size: 15px; }
-    .location { color: #cbd5e1; font-size: 13px; margin: 0; }
-    .nav-btn-owner { background: #6366f1; color: #ffffff; padding: 10px 18px; border-radius: 8px; font-weight: bold; text-decoration: none; font-size: 14px; transition: all 0.2s; display: inline-block; }
-    .nav-btn-owner:hover { background: #4f46e5; }
+    .booking-page { font-family: var(--font-sans); background-color: var(--bg-canvas); color: var(--text-main); min-height: 100vh; display: flex; flex-direction: column; }
     
-    .main-container { display: grid; grid-template-columns: 320px 1fr; gap: 24px; max-width: 1200px; width: 100%; margin: 24px auto; padding: 0 24px; box-sizing: border-box; flex: 1; }
-    .services-panel { background: #1e293b; border-radius: 16px; padding: 20px; border: 1px solid #334155; height: fit-content; }
-    .services-panel h3 { margin-top: 0; color: #f1f5f9; font-size: 18px; border-bottom: 1px solid #334155; padding-bottom: 12px; }
-    .service-card { background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 16px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; }
-    .service-card:hover, .service-card.selected { border-color: #6366f1; background: #1e1b4b; }
-    .service-title { display: flex; justify-content: space-between; align-items: center; }
-    .price { color: #4ade80; font-weight: bold; }
-    .service-desc { font-size: 13px; color: #94a3b8; margin: 8px 0; }
-    .service-meta { font-size: 12px; color: #818cf8; }
+    .business-header { background: var(--bg-surface); padding: 20px 32px; border-bottom: 1px solid var(--border-subtle); }
+    .header-content { display: flex; justify-content: space-between; align-items: center; max-width: 1240px; margin: 0 auto; width: 100%; }
+    .brand-info { display: flex; align-items: center; gap: 16px; }
+    .avatar-icon { width: 48px; height: 48px; background: rgba(99, 102, 241, 0.12); color: var(--ai-primary); border-radius: var(--radius-md); border: 1px solid rgba(99, 102, 241, 0.25); display: flex; align-items: center; justify-content: center; }
+    .title-row { display: flex; align-items: center; gap: 10px; }
+    .business-header h1 { margin: 0; font-size: 22px; font-weight: 700; color: #ffffff; font-family: var(--font-display); }
+    .verified-badge { background: rgba(16, 185, 129, 0.12); color: var(--success-emerald); border: 1px solid rgba(16, 185, 129, 0.25); padding: 2px 8px; border-radius: var(--radius-full); font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+    .tagline { color: var(--text-muted); margin: 3px 0 4px 0; font-size: 13.5px; }
+    .location-bar { color: var(--text-dim); font-size: 12.5px; display: flex; align-items: center; gap: 8px; }
+    .sep { color: var(--border-medium); }
 
-    .chat-section { background: #1e293b; border-radius: 16px; border: 1px solid #334155; display: flex; flex-direction: column; height: 620px; overflow: hidden; }
-    .chat-messages { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
-    .message-row { display: flex; gap: 12px; align-items: flex-start; max-width: 80%; }
-    .message-row.user { align-self: flex-end; flex-direction: row-reverse; }
-    .avatar { font-size: 20px; background: #334155; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .bubble { background: #334155; padding: 14px 18px; border-radius: 16px; font-size: 15px; line-height: 1.5; color: #f8fafc; }
-    .message-row.user .bubble { background: #4f46e5; color: #ffffff; }
-    .sender-name { font-size: 11px; color: #94a3b8; margin-bottom: 4px; font-weight: 600; }
+    .nav-btn-owner { background: var(--bg-surface-hover); color: var(--text-main); border: 1px solid var(--border-medium); padding: 8px 16px; border-radius: var(--radius-sm); font-weight: 600; text-decoration: none; font-size: 13px; transition: all 0.15s ease; display: inline-flex; align-items: center; gap: 6px; }
+    .nav-btn-owner:hover { background: #222d42; border-color: var(--border-strong); color: #ffffff; }
+
+    .main-container { display: grid; grid-template-columns: 320px 1fr; gap: 24px; max-width: 1240px; width: 100%; margin: 24px auto; padding: 0 24px; box-sizing: border-box; flex: 1; }
     
-    .slots-container { margin-top: 14px; background: #0f172a; padding: 14px; border-radius: 12px; border: 1px solid #475569; }
-    .slots-title { margin: 0 0 10px 0; font-size: 14px; color: #e2e8f0; }
+    .services-panel { background: var(--bg-surface); border-radius: var(--radius-lg); padding: 20px; border: 1px solid var(--border-subtle); height: fit-content; }
+    .panel-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px; margin-bottom: 16px; }
+    .services-panel h3 { margin: 0; color: #ffffff; font-size: 15px; font-weight: 600; }
+    .service-count { font-size: 12px; color: var(--text-dim); }
+
+    .service-cards-list { display: flex; flex-direction: column; gap: 10px; }
+    .service-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 14px; cursor: pointer; transition: all 0.15s ease; }
+    .service-card:hover { border-color: var(--border-medium); background: var(--bg-card-hover); }
+    .service-card.selected { border-color: var(--ai-primary); background: rgba(99, 102, 241, 0.08); }
+    .service-title { display: flex; justify-content: space-between; align-items: center; }
+    .service-title strong { color: #ffffff; font-size: 14px; }
+    .price { color: var(--success-emerald); font-weight: 700; font-family: var(--font-mono); font-size: 13.5px; }
+    .service-desc { font-size: 12.5px; color: var(--text-muted); margin: 6px 0 10px 0; line-height: 1.4; }
+    .service-meta { font-size: 11.5px; color: #a5b4fc; display: flex; align-items: center; gap: 5px; }
+
+    .chat-section { background: var(--bg-surface); border-radius: var(--radius-lg); border: 1px solid var(--border-subtle); display: flex; flex-direction: column; height: 640px; overflow: hidden; }
+    .chat-header-bar { padding: 14px 20px; background: var(--bg-canvas); border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; }
+    .agent-title { display: flex; align-items: center; gap: 10px; }
+    .ai-icon-spark { font-size: 16px; color: var(--ai-primary); }
+    .agent-name { display: block; font-weight: 600; font-size: 13.5px; color: #ffffff; }
+    .agent-status { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-dim); }
+
+    .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+    .message-row { display: flex; gap: 12px; align-items: flex-start; max-width: 85%; }
+    .message-row.user { align-self: flex-end; flex-direction: row-reverse; }
+    .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--bg-card-hover); border: 1px solid var(--border-medium); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+    .message-row.user .avatar { background: var(--ai-primary); border-color: transparent; }
+
+    .bubble { background: var(--bg-card); border: 1px solid var(--border-subtle); padding: 12px 16px; border-radius: var(--radius-md); font-size: 13.5px; line-height: 1.5; color: var(--text-main); }
+    .message-row.user .bubble { background: var(--ai-gradient); border-color: transparent; color: #ffffff; }
+    .sender-name { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; font-weight: 600; }
+    .message-row.user .sender-name { color: rgba(255,255,255,0.7); text-align: right; }
+
+    .slots-container { margin-top: 12px; background: var(--bg-canvas); padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-medium); }
+    .slots-title { margin: 0 0 10px 0; font-size: 13px; color: var(--text-muted); }
     .slot-buttons { display: flex; flex-direction: column; gap: 8px; }
-    .slot-btn { background: #1e293b; color: #38bdf8; border: 1px solid #38bdf8; padding: 10px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; text-align: left; transition: all 0.2s; }
-    .slot-btn:hover, .slot-btn.active { background: #38bdf8; color: #0f172a; }
+    .slot-btn { background: var(--bg-surface); color: var(--info-cyan); border: 1px solid rgba(6, 182, 212, 0.3); padding: 10px 14px; border-radius: var(--radius-sm); font-weight: 600; font-size: 13px; cursor: pointer; text-align: left; transition: all 0.15s ease; display: flex; align-items: center; gap: 8px; }
+    .slot-btn:hover, .slot-btn.active { background: var(--info-cyan); color: #090d16; border-color: var(--info-cyan); }
     .slot-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    .lead-form-card { background: #1e1b4b; border: 1px solid #6366f1; border-radius: 12px; padding: 16px 20px; margin: 0 24px 16px 24px; }
-    .lead-form-card h4 { margin: 0 0 12px 0; color: #a5b4fc; }
+    .lead-form-card { background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: var(--radius-md); padding: 16px 20px; margin: 0 20px 16px 20px; }
+    .lead-form-card h4 { margin: 0 0 12px 0; color: #a5b4fc; font-size: 13.5px; font-weight: 600; }
+    .slot-highlight { color: #ffffff; font-weight: 700; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; }
-    .form-grid input { background: #0f172a; border: 1px solid #475569; color: #ffffff; padding: 10px 14px; border-radius: 8px; font-size: 14px; }
-    .btn-submit { background: #22c55e; color: #ffffff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: all 0.2s; }
+    .btn-submit { background: var(--success-emerald); color: #ffffff; border: none; padding: 10px 18px; border-radius: var(--radius-sm); font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.15s ease; white-space: nowrap; }
+    .btn-submit:hover:not(:disabled) { background: #059669; }
     .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; background: #475569; }
 
-    .success-banner { background: linear-gradient(135deg, #064e3b 0%, #022c22 100%); border: 1px solid #10b981; border-radius: 12px; padding: 24px; text-align: center; margin: 24px; }
-    .success-icon { font-size: 48px; }
-    .status-badge { display: inline-block; background: #fef08a; color: #854d0e; font-weight: bold; padding: 6px 16px; border-radius: 20px; margin: 12px 0; }
-    .sub-text { font-size: 13px; color: #a7f3d0; margin-top: 8px; }
-    .banner-actions { margin-top: 18px; }
-    .btn-goto-dashboard { background: #6366f1; color: #ffffff; padding: 12px 24px; border-radius: 8px; font-weight: bold; text-decoration: none; display: inline-block; font-size: 14px; }
+    .success-banner { background: var(--success-bg); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: var(--radius-lg); padding: 24px; text-align: center; margin: 20px; }
+    .success-icon { font-size: 40px; margin-bottom: 8px; }
+    .success-banner h3 { margin: 0 0 6px 0; color: #ffffff; font-size: 18px; }
+    .status-badge { display: inline-block; background: var(--warning-bg); color: var(--warning-amber); border: 1px solid rgba(245, 158, 11, 0.3); font-weight: 600; padding: 4px 14px; border-radius: var(--radius-full); font-size: 12px; margin: 10px 0; }
+    .sub-text { font-size: 13px; color: var(--text-muted); margin-top: 8px; }
+    .banner-actions { margin-top: 16px; }
+    .btn-goto-dashboard { background: var(--ai-primary); color: #ffffff; padding: 10px 20px; border-radius: var(--radius-sm); font-weight: 600; text-decoration: none; display: inline-block; font-size: 13px; transition: all 0.15s ease; }
+    .btn-goto-dashboard:hover { background: var(--ai-primary-hover); }
 
-    .chat-input-bar { display: flex; gap: 12px; padding: 16px 24px; background: #0f172a; border-top: 1px solid #334155; }
-    .chat-input-bar input { flex: 1; background: #1e293b; border: 1px solid #475569; color: #ffffff; padding: 12px 18px; border-radius: 12px; font-size: 15px; }
-    .chat-input-bar button { background: #6366f1; color: #ffffff; border: none; padding: 12px 24px; border-radius: 12px; font-weight: bold; cursor: pointer; }
+    .chat-input-bar { display: flex; gap: 10px; padding: 16px 20px; background: var(--bg-canvas); border-top: 1px solid var(--border-subtle); }
+    .chat-input-bar input { flex: 1; }
+    .chat-input-bar button { background: var(--ai-primary); color: #ffffff; border: none; padding: 10px 20px; border-radius: var(--radius-sm); font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s ease; }
+    .chat-input-bar button:hover:not(:disabled) { background: var(--ai-primary-hover); }
+    .chat-input-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .spinner-dots { display: inline-flex; gap: 4px; margin-right: 6px; }
+    .spinner-dots span { width: 4px; height: 4px; background: var(--ai-primary); border-radius: 50%; animation: pulseGlow 1s infinite alternate; }
+    .spinner-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .spinner-dots span:nth-child(3) { animation-delay: 0.4s; }
   `]
 })
 export class CustomerBookingComponent implements OnInit {
